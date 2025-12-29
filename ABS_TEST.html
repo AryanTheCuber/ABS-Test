@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BIDWARS | Premium Auction Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* --- Custom Styles & Animations --- */
+    body { font-family: 'Inter', sans-serif; }
+    
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Glassmorphism */
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Animations */
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    
+    .winner-glow {
+      animation: pulse-ring 2s infinite;
+      border-color: #10B981 !important;
+    }
+
+    .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-200 min-h-screen overflow-x-hidden selection:bg-emerald-500 selection:text-white">
+
+  <div class="max-w-5xl mx-auto p-4 md:p-8">
+    
+    <header class="flex flex-col md:flex-row justify-between items-end mb-8 border-b border-slate-800 pb-6 gap-4">
+      <div>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight">
+          BID<span class="font-light text-slate-500">WARS</span>
+        </h1>
+        <p class="text-slate-500 text-xs mt-2 font-mono tracking-widest uppercase">Event-Driven Architecture v2.2</p>
+      </div>
+      <div id="statusBadge" class="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
+        System Idle
+      </div>
+    </header>
+
+    <div id="setupView" class="glass-panel p-8 rounded-2xl shadow-2xl max-w-2xl mx-auto fade-in">
+      <h2 class="text-2xl font-semibold text-white mb-6 border-l-4 border-emerald-500 pl-4">Initialize Session</h2>
+      
+      <div class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-xs uppercase text-slate-500 font-bold mb-2 tracking-wider">Your Alias</label>
+            <input id="playerName" type="text" value="Player 1" 
+              class="w-full bg-slate-900/50 border border-slate-700 text-white rounded-lg p-3 focus:outline-none focus:border-emerald-500 transition-colors">
+          </div>
+          <div>
+            <label class="block text-xs uppercase text-slate-500 font-bold mb-2 tracking-wider">Starting Capital</label>
+            <input id="playerPurse" type="number" value="10000" 
+              class="w-full bg-slate-900/50 border border-slate-700 text-white rounded-lg p-3 focus:outline-none focus:border-emerald-500 transition-colors">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs uppercase text-slate-500 font-bold mb-3 tracking-wider">Opponent Strategy</label>
+          <select id="botStyle" class="w-full bg-slate-900/50 border border-slate-700 text-white rounded-lg p-3 focus:outline-none focus:border-emerald-500 transition-colors">
+            <option value="balanced">Balanced (Standard Risk)</option>
+            <option value="aggressive">Aggressive (High Frequency)</option>
+            <option value="whale">The Whale (Unlimited Aggression)</option>
+          </select>
+        </div>
+
+        <button id="startBtn" class="w-full py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold rounded-lg transition-all transform hover:scale-[1.01] shadow-lg shadow-emerald-900/20">
+          Enter Auction Market
+        </button>
+      </div>
+    </div>
+
+    <div id="gameView" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 fade-in">
+      
+      <div class="lg:col-span-8 flex flex-col gap-6">
+        
+        <div class="relative h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div id="timerBar" class="absolute top-0 left-0 h-full bg-emerald-500 w-full transition-all duration-75"></div>
+        </div>
+
+        <div class="glass-panel p-8 md:p-12 rounded-2xl text-center relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
+          
+          <div class="relative z-10">
+            <div class="text-slate-400 text-xs uppercase tracking-[0.2em] mb-4 font-semibold">Current Highest Bid</div>
+            <div id="bidAmount" class="text-6xl md:text-8xl font-black text-white mb-4 tracking-tighter drop-shadow-2xl">₹0</div>
+            
+            <div class="flex items-center justify-center gap-3 mb-2">
+              <span class="text-slate-500 text-sm">Held by</span>
+              <span id="bidderName" class="font-mono text-lg font-bold text-slate-500">---</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <button id="bidSmall" class="group relative overflow-hidden p-5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all active:scale-[0.98]">
+            <div class="relative z-10">
+              <div class="text-slate-400 text-xs uppercase font-bold mb-1 tracking-wider">Standard Raise</div>
+              <div id="smallLabel" class="text-xl font-bold text-white group-hover:text-emerald-400 transition-colors">₹0</div>
+            </div>
+          </button>
+          
+          <button id="bidLarge" class="group relative overflow-hidden p-5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all active:scale-[0.98]">
+            <div class="relative z-10">
+              <div class="text-slate-400 text-xs uppercase font-bold mb-1 tracking-wider">Aggressive Raise</div>
+              <div id="largeLabel" class="text-xl font-bold text-white group-hover:text-yellow-400 transition-colors">₹0</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="glass-panel rounded-xl overflow-hidden flex flex-col h-48 border-t-4 border-slate-700">
+          <div class="bg-slate-900/80 px-4 py-2 text-xs font-bold text-slate-500 uppercase flex justify-between items-center">
+            <span>Transaction Ledger</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          </div>
+          <div id="logContainer" class="p-4 overflow-y-auto font-mono text-sm space-y-2 flex-1 scroll-smooth"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-4 flex flex-col gap-4">
+        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Participants</h3>
+        <div id="playersContainer" class="space-y-3">
+          </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="gameOverModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md">
+    <div class="bg-slate-900 border border-slate-700 p-8 rounded-2xl max-w-md w-full text-center shadow-2xl">
+      <h2 class="text-3xl font-bold text-white mb-2">Auction Closed</h2>
+      <div id="winnerDisplay" class="my-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
+        <div class="text-sm text-slate-500 uppercase">Winner</div>
+        <div id="winnerName" class="text-2xl text-emerald-400 font-mono font-bold"></div>
+      </div>
+      <button onclick="location.reload()" class="w-full px-6 py-3 bg-white hover:bg-slate-200 text-slate-900 rounded-lg font-bold transition-colors">
+        Start New Session
+      </button>
+    </div>
+  </div>
+
+<script>
+/**
+ * ------------------------------------------------------------------
+ * 1. EVENT SYSTEM (Pub/Sub Pattern)
+ * Decouples Logic from UI
+ * ------------------------------------------------------------------
+ */
+const Events = {
+  events: {},
+  on(event, listener) {
+    if (!this.events[event]) this.events[event] = [];
+    this.events[event].push(listener);
+  },
+  emit(event, data) {
+    if (this.events[event]) {
+      this.events[event].forEach(listener => listener(data));
+    }
+  }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * 2. CONFIGURATION & STATE
+ * ------------------------------------------------------------------
+ */
+const CONFIG = {
+  ROUND_TIME_MS: 10000,
+  EXTENSION_MS: 2000,
+  SMALL_INC: 0.05,
+  LARGE_INC: 0.15,
+  MAX_ROUNDS: 5
+};
+
+const State = {
+  active: false,
+  round: { index: 0, start: 0, endsAt: 0, bid: 0, bidder: null },
+  players: {}
+};
+
+/**
+ * ------------------------------------------------------------------
+ * 3. AI INTELLIGENCE
+ * ------------------------------------------------------------------
+ */
+const AI = {
+  timeout: null,
+
+  evaluate() {
+    clearTimeout(this.timeout);
+    
+    // Stop if round closed or AI is winning
+    if (!State.active || State.round.bidder === 'ai') return;
+
+    // Reaction delay (Human-like)
+    const delay = Math.random() * 1000 + 800; // 0.8s - 1.8s
+
+    this.timeout = setTimeout(() => {
+      // Re-check conditions after delay
+      if (!State.active || State.round.bidder === 'ai') return;
+
+      const ai = State.players.ai;
+      const human = State.players.human;
+      const currentBid = State.round.bid;
+      
+      // Determine spending limit based on personality
+      let limit = ai.purse;
+      if (ai.style === 'balanced') limit = ai.purse * 0.75;
+      if (ai.style === 'aggressive') limit = ai.purse * 0.95;
+
+      // Calculate Bid
+      let nextBid = Math.floor((currentBid || 100) * (1 + CONFIG.SMALL_INC));
+      
+      // Whale Logic: Occasional aggressive jumps
+      if (ai.style === 'whale' && Math.random() > 0.7) {
+        nextBid = Math.floor((currentBid || 100) * (1 + CONFIG.LARGE_INC));
+      }
+
+      // First bid logic
+      if (currentBid === 0) nextBid = 200;
+
+      // Execute if valid
+      if (nextBid <= limit && nextBid < human.purse + 500) {
+        Engine.placeBid('ai', nextBid);
+      }
+    }, delay);
+  }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * 4. GAME ENGINE
+ * ------------------------------------------------------------------
+ */
+const Engine = {
+  roundTimer: null,
+
+  init(humanName, purse, botStyle) {
+    State.players = {
+      human: { id: 'human', name: humanName, purse: purse, initial: purse, avatar: '👤' },
+      ai: { id: 'ai', name: 'Competitor Bot', purse: Math.floor(purse * 1.5), initial: Math.floor(purse * 1.5), style: botStyle, avatar: '🤖' }
+    };
+    State.round.index = 0;
+    this.startRound();
+  },
+
+  startRound() {
+    if (State.round.index >= CONFIG.MAX_ROUNDS) {
+      Events.emit('GAME_OVER');
+      return;
+    }
+
+    State.round.index++;
+    State.round.bid = 0;
+    State.round.bidder = null;
+    State.round.start = Date.now();
+    State.round.endsAt = Date.now() + CONFIG.ROUND_TIME_MS;
+    State.active = true;
+
+    Events.emit('ROUND_START');
+
+    // Main Round Timer
+    this.setRoundTimer();
+    
+    // Trigger AI to maybe start bidding
+    if (Math.random() > 0.5) AI.evaluate();
+  },
+
+  setRoundTimer() {
+    clearTimeout(this.roundTimer);
+    const timeLeft = State.round.endsAt - Date.now();
+    this.roundTimer = setTimeout(() => this.endRound(), timeLeft);
+  },
+
+  placeBid(playerId, amount) {
+    if (!State.active) return;
+    const p = State.players[playerId];
+
+    // Rules
+    if (amount > p.purse) return;
+    if (amount <= State.round.bid) return;
+
+    // Apply Bid
+    State.round.bid = amount;
+    State.round.bidder = playerId;
+
+    // Anti-Sniping (Time Extension)
+    const now = Date.now();
+    if (State.round.endsAt - now < CONFIG.EXTENSION_MS) {
+      State.round.endsAt += CONFIG.EXTENSION_MS;
+      this.setRoundTimer(); // Reset the end timeout
+      Events.emit('TIME_EXTENDED');
+    }
+
+    Events.emit('BID', { playerId, amount });
+  },
+
+  endRound() {
+    State.active = false;
+    clearTimeout(this.roundTimer);
+    clearTimeout(AI.timeout);
+
+    if (State.round.bidder) {
+      State.players[State.round.bidder].purse -= State.round.bid;
+    }
+
+    Events.emit('ROUND_END');
+    
+    // Cooldown before next round
+    setTimeout(() => this.startRound(), 3000);
+  }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * 5. UI CONTROLLER
+ * ------------------------------------------------------------------
+ */
+const UI = {
+  els: {
+    setup: document.getElementById('setupView'),
+    game: document.getElementById('gameView'),
+    status: document.getElementById('statusBadge'),
+    bidAmount: document.getElementById('bidAmount'),
+    bidderName: document.getElementById('bidderName'),
+    timerBar: document.getElementById('timerBar'),
+    players: document.getElementById('playersContainer'),
+    log: document.getElementById('logContainer'),
+    gameOver: document.getElementById('gameOverModal'),
+    winnerName: document.getElementById('winnerName'),
+    btnSmall: document.getElementById('bidSmall'),
+    btnLarge: document.getElementById('bidLarge'),
+    lblSmall: document.getElementById('smallLabel'),
+    lblLarge: document.getElementById('largeLabel')
+  },
+
+  init() {
+    // Button Listeners
+    document.getElementById('startBtn').onclick = () => {
+      const name = document.getElementById('playerName').value || 'Player';
+      const purse = Number(document.getElementById('playerPurse').value) || 10000;
+      const style = document.getElementById('botStyle').value;
+      
+      this.els.setup.classList.add('hidden');
+      this.els.game.classList.remove('hidden');
+      this.els.game.classList.add('grid'); // Restore grid layout
+      
+      Engine.init(name, purse, style);
+    };
+
+    this.els.btnSmall.onclick = () => this.humanBid(CONFIG.SMALL_INC);
+    this.els.btnLarge.onclick = () => this.humanBid(CONFIG.LARGE_INC);
+
+    // Animation Loop
+    requestAnimationFrame(() => this.tick());
+  },
+
+  humanBid(pct) {
+    const base = State.round.bid || 100;
+    const amt = Math.floor(base * (1 + pct));
+    Engine.placeBid('human', amt);
+  },
+
+  renderState() {
+    // 1. Update Status & Bid
+    this.els.status.textContent = State.active ? `ROUND ${State.round.index} LIVE` : 'ROUND CLOSED';
+    this.els.status.className = State.active 
+      ? "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/50"
+      : "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/50";
+
+    this.els.bidAmount.textContent = `₹${State.round.bid.toLocaleString()}`;
+    
+    if (State.round.bidder) {
+      const p = State.players[State.round.bidder];
+      this.els.bidderName.textContent = p.name;
+      this.els.bidderName.className = State.round.bidder === 'human' 
+        ? "font-mono text-lg font-bold text-emerald-400" 
+        : "font-mono text-lg font-bold text-red-400";
+    } else {
+      this.els.bidderName.textContent = "Waiting for opening bid...";
+      this.els.bidderName.className = "font-mono text-lg font-bold text-slate-500";
+    }
+
+    // 2. Update Buttons (Predictive text)
+    const base = State.round.bid || 100;
+    this.els.lblSmall.textContent = `₹${Math.floor(base * (1 + CONFIG.SMALL_INC)).toLocaleString()}`;
+    this.els.lblLarge.textContent = `₹${Math.floor(base * (1 + CONFIG.LARGE_INC)).toLocaleString()}`;
+
+    // 3. Render Players
+    this.els.players.innerHTML = Object.values(State.players).map(p => {
+      const isWinning = State.round.bidder === p.id;
+      return `
+        <div class="glass-panel p-4 rounded-xl border ${isWinning ? 'winner-glow border-emerald-500' : 'border-slate-700'} transition-all">
+          <div class="flex justify-between items-center mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">${p.avatar}</span>
+              <span class="font-bold ${isWinning ? 'text-emerald-400' : 'text-slate-300'}">${p.name}</span>
+            </div>
+            ${isWinning ? '<span class="text-[10px] bg-emerald-500 text-slate-900 px-2 py-0.5 rounded font-bold uppercase">Leading</span>' : ''}
+          </div>
+          <div class="flex justify-between text-sm text-slate-400 font-mono">
+            <span>Funds</span>
+            <span>₹${p.purse.toLocaleString()}</span>
+          </div>
+          <div class="h-1 bg-slate-800 mt-2 rounded-full overflow-hidden">
+            <div class="h-full bg-emerald-500 transition-all duration-500" style="width: ${(p.purse / p.initial) * 100}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  addLog(msg, type = 'neutral') {
+    const el = document.createElement('div');
+    const time = new Date().toLocaleTimeString('en-US', {hour12: false, minute:'2-digit', second:'2-digit'});
+    let color = 'text-slate-400';
+    if (type === 'good') color = 'text-emerald-400';
+    if (type === 'bad') color = 'text-red-400';
+    if (type === 'warn') color = 'text-yellow-400';
+
+    el.innerHTML = `<span class="opacity-40 text-xs mr-2 font-mono">${time}</span><span class="${color}">${msg}</span>`;
+    this.els.log.prepend(el);
+  },
+
+  tick() {
+    if (State.active) {
+      const now = Date.now();
+      const left = Math.max(0, State.round.endsAt - now);
+      const pct = (left / CONFIG.ROUND_TIME_MS) * 100; // Visual approximation
+
+      this.els.timerBar.style.width = `${Math.min(100, pct)}%`;
+      
+      if (left < 3000) this.els.timerBar.className = "absolute top-0 left-0 h-full bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]";
+      else if (left < 6000) this.els.timerBar.className = "absolute top-0 left-0 h-full bg-yellow-400";
+      else this.els.timerBar.className = "absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-500 to-cyan-500";
+    }
+    requestAnimationFrame(() => this.tick());
+  }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * 6. EVENT BINDINGS
+ * ------------------------------------------------------------------
+ */
+Events.on('ROUND_START', () => {
+  UI.renderState();
+  UI.addLog(`--- Round ${State.round.index} Started ---`, 'warn');
+});
+
+Events.on('BID', (data) => {
+  const p = State.players[data.playerId];
+  const type = data.playerId === 'human' ? 'good' : 'bad';
+  UI.addLog(`${p.name} bids ₹${data.amount.toLocaleString()}`, type);
+  UI.renderState();
+  
+  // TRIGGER AI: Whenever a bid happens, AI checks if it should counter
+  AI.evaluate(); 
+});
+
+Events.on('TIME_EXTENDED', () => {
+  UI.addLog("⏱️ Sniper detected! Time extended.", 'warn');
+});
+
+Events.on('ROUND_END', () => {
+  if (State.round.bidder) {
+    const p = State.players[State.round.bidder];
+    UI.addLog(`🏆 ${p.name} wins Round ${State.round.index}`, 'good');
+  } else {
+    UI.addLog(`❌ No bids placed.`, 'bad');
+  }
+  UI.renderState();
+});
+
+Events.on('GAME_OVER', () => {
+  const sorted = Object.values(State.players).sort((a, b) => b.purse - a.purse);
+  const winner = sorted[0];
+  document.getElementById('winnerName').textContent = `${winner.name} (₹${winner.purse.toLocaleString()})`;
+  document.getElementById('gameOverModal').classList.remove('hidden');
+});
+
+// Boot
+UI.init();
+</script>
+</body>
+</html>
